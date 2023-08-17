@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart'; // Import path_provider package
-
+import 'package:http/http.dart' as http;
 
 
 class MaskImageScreen extends StatefulWidget {
@@ -17,6 +18,65 @@ class _MaskImageScreenState extends State<MaskImageScreen> {
   List<List<Offset>> strokes = [];
   List<Offset> currentStroke = [];
   ui.Image? _image;
+  Future<File> assetToFile() async {
+    final ByteData data = await rootBundle.load("images/sample.jpeg");
+    final Uint8List bytes = data.buffer.asUint8List();
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/assets');
+    await file.writeAsBytes(bytes);
+    return file;
+  }
+
+
+  Future<void> editImage({
+
+    required String imagePath,
+    required String maskPath,
+
+  }) async {
+
+    final String prompt ="Shahrukh khan standing infont of building";
+    final int n = 1;
+    final String size = '1024x1024';
+
+
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse('https://api.openai.com/v1/images/edits'),
+    );
+
+    request.headers.addAll({
+      'Authorization': 'Bearer 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',
+    });
+
+    request.files.add(
+      await http.MultipartFile.fromPath('image', imagePath),
+    );
+
+    request.files.add(
+      await http.MultipartFile.fromPath('mask', maskPath),
+    );
+
+    request.fields.addAll({
+      'prompt': prompt,
+      'n': n.toString(),
+      'size': size,
+    });
+
+    try {
+      var response = await request.send();
+      if (response.statusCode == 200) {
+        var responseData = await response.stream.bytesToString();
+        print('Response Data: $responseData');
+      } else {
+        print('Request failed with status: ${response.statusCode}');
+        print('Response body: ${await response.stream.bytesToString()}');
+      }
+    } catch (e) {
+      print('Error: $e');
+    }
+
+  }
 
   @override
   void initState() {
@@ -98,8 +158,11 @@ class _MaskImageScreenState extends State<MaskImageScreen> {
 
                   final directory = await getApplicationDocumentsDirectory();
                   final imagePath = '${directory.path}/painted_image.png';
-                  await File(imagePath).writeAsBytes(pngBytes!.buffer.asUint8List());
-                  print(imagePath.toString());
+                  var result=await File(imagePath).writeAsBytes(pngBytes!.buffer.asUint8List());
+                  print(result.path.toString());
+                  File assetimage=await assetToFile();
+                  editImage(imagePath: assetimage.path, maskPath: imagePath,);
+
                 }
               },
               child: Icon(Icons.done),
